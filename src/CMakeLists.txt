@@ -29,7 +29,7 @@ CUSTOM_VAPIS
 GENERATE_HEADER
   dblib
 OPTIONS
---thread -g --vapidir=${CMAKE_INSTALL_PREFIX}/share/vala/vapi
+--thread -g --vapidir=${CMAKE_INSTALL_PREFIX}/share/vala/vapi ${VAPIDIRS_ARGS}
 )
 
 add_library(

@@ -24,7 +24,7 @@ vala_precompile(TEST_DBLIB_VALA_C
 PACKAGES
   ${VALA_PACKAGES} ${DBLIB_NAME}
 OPTIONS
---thread --vapidir=${CMAKE_SOURCE_DIR}/src --vapidir=${CMAKE_INSTALL_PREFIX}/share/vala/vapi
+--thread --vapidir=${CMAKE_SOURCE_DIR}/src --vapidir=${CMAKE_INSTALL_PREFIX}/share/vala/vapi ${VAPIDIRS_ARGS}
 CUSTOM_VAPIS
   ${CUSTOM_VAPIS_LIST}
 )
