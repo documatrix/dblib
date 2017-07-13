@@ -200,6 +200,12 @@ namespace DBLib
      * @return The next row in the resultset or null if no more rows exist.
      */
     public abstract string[]? fetchrow_array( );
+
+    /**
+     * This method will fetch the next row from the current resultset and will return the values as array.
+     * @return The next row in the resultset or null if no more rows exist.
+     */
+    public abstract char** fetchrow_binary( out ulong[] array_length );
   }
 
   /**
@@ -289,13 +295,13 @@ namespace DBLib
           if ( next_parameter >= this.params.length )
           {
             /* There is no more parameter! */
-            DMLogger.log.error( 0, false, "Error while generating final statement code for statement ${1}! Expected ${1} parameters but only ${3} were sepcified!", this.code, ( next_parameter + 1 ).to_string( ), this.params.length.to_string( )
+            DMLogger.log.error( 0, false, "Error while generating final statement code for statement ${1}! Expected ${1} parameters but only ${3} were sepcified! ${4}", this.code, ( next_parameter + 1 ).to_string( ), this.params.length.to_string( ), this.get_params_string( )
             );
             for ( int j = 0; j < this.params.length; j ++ )
             {
               DMLogger.log.error( 0, false, "Parameter ${1}: ${2}", ( j + 1 ).to_string( ), this.params[ j ] ?? "NULL" );
             }
-            throw new DBLib.DBError.STATEMENT_ERROR( "Error while generating final statement code for statement %s! Expected %d parameters but only %d were sepcified!", this.code, next_parameter + 1, this.params.length );
+            throw new DBLib.DBError.STATEMENT_ERROR( "Error while generating final statement code for statement %s! Expected %d parameters but only %d were sepcified! %s", this.code, next_parameter + 1, this.params.length, this.get_params_string( ) );
           }
 
           final_code.append( this.conn.escape( this.params[ next_parameter ] ) );
@@ -308,6 +314,20 @@ namespace DBLib
       }
 
       return final_code.str;
+    }
+
+    /**
+     * This method convert the params array into a readable log string.
+     * @return The params as a string for a log message.
+     */
+    public string get_params_string( )
+    {
+      string param_string = "";
+      for( int i = 0; i < this.params.length; i ++ )
+      {
+        param_string += "\nParams %d: %s".printf( i, this.params[ i ] );
+      }
+      return param_string;
     }
 
     /**

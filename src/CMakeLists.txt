@@ -81,6 +81,14 @@ DESTINATION
   ${CMAKE_INSTALL_PREFIX}/share/vala/vapi/
 )
 
+# Install message database...
+install(
+FILES
+  ${CMAKE_CURRENT_BINARY_DIR}/../log/messages.mdb
+DESTINATION
+  share/${DBLIB_NAME}/
+)
+
 # Install pkg-config file...
 install( FILES
   ${CMAKE_CURRENT_BINARY_DIR}/${DBLIB_NAME}.pc

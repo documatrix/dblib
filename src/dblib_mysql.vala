@@ -164,6 +164,21 @@ namespace DBLib
       {
         return this.mysql_result.fetch_row( );
       }
+
+
+      /**
+       * @see DBLib.Result.fetchrow_binary
+       */
+      public override char** fetchrow_binary( out ulong[] array_length )
+      {
+        char** data = this.mysql_result.fetch_row( );
+        if ( data == null )
+        {
+          return null;
+        }
+        array_length = this.mysql_result.fetch_lengths( );
+        return data;
+      }
     }
   }
 }
