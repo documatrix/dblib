@@ -15,6 +15,21 @@ namespace DBLib
       public Mysql.Database dbh;
 
       /**
+       * The user which should be used to connect to the database.
+       */
+      private string? user;
+
+      /**
+       * The password which should be used to connect to the database.
+       */
+      private string? password;
+
+      /**
+       * The port which should be used to connect to the database.
+       */
+      private uint port = 0;
+
+      /**
        * This constructor will create a new database connection to a MySQL database.
        * @param dsn A DataSourceName object containing the informations which will be passed to the MySQL library.
        * @param user A user which should be used to connect to the database.
@@ -24,15 +39,25 @@ namespace DBLib
       public Connection( DataSourceName dsn, string? user, string? password ) throws DBLib.DBError.CONNECTION_ERROR
       {
         this.dsn = dsn;
+        this.user = user;
+        this.password = password;
 
         this.dbh = new Mysql.Database( );
 
-        uint port = 0;
         if ( dsn[ "port" ] != null )
         {
-          port = (uint)uint64.parse( dsn[ "port" ] );
+          this.port = (uint)uint64.parse( dsn[ "port" ] );
         }
-        if ( !this.dbh.real_connect( dsn[ "host" ], user, password, dsn[ "database" ], port, dsn[ "unix_socket" ] ) )
+        this.connect( );
+      }
+
+      /**
+       * This method can be used to connect to the database.
+       * @throws DBLib.DBError if an error occurs while connecting to the MySQL database.
+       */
+      private void connect( ) throws DBLib.DBError.CONNECTION_ERROR
+      {
+        if ( !this.dbh.real_connect( this.dsn[ "host" ], this.user, this.password, this.dsn[ "database" ], this.port, this.dsn[ "unix_socket" ] ) )
         {
           throw new DBLib.DBError.CONNECTION_ERROR( "Could not connect to MySQL database! %u: %s", this.dbh.errno( ), this.dbh.error( ) );
         }
@@ -62,7 +87,20 @@ namespace DBLib
       {
         if ( this.dbh.real_query( code, code.length ) != 0 )
         {
-          throw new DBLib.DBError.STATEMENT_ERROR( "Could not execute query \"%s\" on MySQL database! %u: %s", code, this.dbh.errno( ), this.dbh.error( ) );
+          /* Check Connection */
+          if ( this.dbh.ping( ) != 0 )
+          {
+            /* No connection */
+            this.connect( );
+            if ( this.dbh.real_query( code, code.length ) != 0 )
+            {
+              throw new DBLib.DBError.STATEMENT_ERROR( "Could not execute query \"%s\" on MySQL database! %u: %s", code, this.dbh.errno( ), this.dbh.error( ) );
+            }
+          }
+          else
+          {
+            throw new DBLib.DBError.STATEMENT_ERROR( "Could not execute query \"%s\" on MySQL database! %u: %s", code, this.dbh.errno( ), this.dbh.error( ) );
+          }
         }
       }
 
