@@ -17,6 +17,7 @@ include( UseVala )
 
 set (DBLIB_SOURCES ${DBLIB_SOURCES} dblib.vala)
 set (DBLIB_SOURCES ${DBLIB_SOURCES} dblib_mysql.vala)
+set (DBLIB_SOURCES ${DBLIB_SOURCES} dblib_sqlite.vala)
 
 vala_precompile(DBLIB_VALA_C
   ${DBLIB_SOURCES}

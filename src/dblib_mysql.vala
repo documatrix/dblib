@@ -64,24 +64,7 @@ namespace DBLib
       }
 
       /**
-       * @see DBLib.Connection.escape
-       */
-      public override string escape( string? val )
-      {
-        if ( val == null )
-        {
-          return "NULL";
-        }
-        else
-        {
-          string escaped = string.nfill( val.length * 2 + 1, ' ' );
-          ulong res_len = this.dbh.real_escape_string( escaped, val, val.length );
-          return "\"" + escaped + "\"";
-        }
-      }
-
-      /**
-       * @see DBLib.Connection.execute_query
+       * @see DBLib.Connection. execute_query
        */
       public override void execute_query( string code ) throws DBLib.DBError.STATEMENT_ERROR
       {
@@ -118,6 +101,170 @@ namespace DBLib
       public override uint64 get_insert_id( )
       {
         return this.dbh.insert_id( );
+      }
+
+      public override string column_definition_to_sql( ColumnDefinition column )
+      {
+        string column_sql = "`%s` %s".printf( column.name, column.data_type.to_string( ) );
+        if ( column.size != 0 )
+        {
+          column_sql = column_sql.concat( "(%u)".printf( column.size ) );
+        }
+        if ( column.is_unsigned )
+        {
+          column_sql = column_sql.concat( " UNSIGNED" );
+        }
+        if ( column.is_nullable )
+        {
+          column_sql = column_sql.concat( " NULL" );
+        }
+        else
+        {
+          column_sql = column_sql.concat( " NOT NULL" );
+        }
+
+        switch ( column.default_value_type )
+        {
+          case DefaultValueType.NO_DEFAULT:
+            break;
+          case DefaultValueType.NULL:
+            column_sql = column_sql.concat( " DEFAULT NULL" );
+            break;
+          case DefaultValueType.CURRENT_TIMESTAMP:
+            column_sql = column_sql.concat( " DEFAULT CURRENT_TIMESTAMP" );
+            break;
+          case DefaultValueType.AUTO_INCREMENT:
+            column_sql = column_sql.concat( " AUTO_INCREMENT" );
+            break;
+          case DefaultValueType.CUSTOM:
+            column_sql = column_sql.concat( " DEFAULT '%s'".printf( column.default_value ) );
+            break;
+        }
+
+        return column_sql;
+      }
+
+      /**
+       * @see DBLib.Connection.quote
+       */
+      public override string quote( string val )
+      {
+        return "`".concat( val, "`" );
+      }
+
+      /**
+       * This method will generate the final statement code using the given code and specified parameters.
+       * It will replace question marks in the statement code and replace them with the escaped params.
+       * @return The final statement code.
+       * @throws DBLib.DBError.STATEMENT_ERROR if an error occurs while replacing the parameters.
+       */
+      public string get_final_code( DBLib.Statement statment ) throws DBLib.DBError.STATEMENT_ERROR
+      {
+        char c;
+        string code = statment.to_sql( );
+        int code_length = code.length;
+        int next_parameter = 0;
+        StringBuilder final_code = new StringBuilder.sized( code_length );
+
+        string[] params = statment.get_binds( );
+        for ( int i = 0; i < code_length; i ++ )
+        {
+          c = code[ i ];
+
+          if ( c == '?' )
+          {
+            /* Get the next parameter and escape it. */
+            if ( next_parameter >= params.length )
+            {
+              /* There is no more parameter! */
+              DMLogger.log.error( 0, false, "Error while generating final statement code for statement ${1}! Expected ${1} parameters but only ${3} were sepcified! ${4}", code, ( next_parameter + 1 ).to_string( ), params.length.to_string( ), this.get_params_string( params )
+              );
+              for ( int j = 0; j < params.length; j ++ )
+              {
+                DMLogger.log.error( 0, false, "Parameter ${1}: ${2}", ( j + 1 ).to_string( ), params[ j ] ?? "NULL" );
+              }
+              throw new DBLib.DBError.STATEMENT_ERROR( "Error while generating final statement code for statement %s! Expected %d parameters but only %d were sepcified! %s", code, next_parameter + 1, params.length, this.get_params_string( params ) );
+            }
+
+            final_code.append( this.escape( params[ next_parameter ] ) );
+            next_parameter ++;
+          }
+          else
+          {
+            final_code.append_c( c );
+          }
+        }
+        return final_code.str;
+      }
+
+    /**
+     * This method convert the params array into a readable log string.
+     * @return The params as a string for a log message.
+     */
+    public string get_params_string( string[] params )
+    {
+      string param_string = "";
+      for( int i = 0; i < params.length; i ++ )
+      {
+        param_string += "\nParams %d: %s".printf( i, params[ i ] );
+      }
+      return param_string;
+    }
+
+      /**
+       * This method will replace the question marks in the statement code by the given parameters and will execute
+       * the statement.
+       * @return The executed statement.
+       * @throws DBLib.DBError.STATEMENT_ERROR if an error occurs while replacing the parameters or while executing the statement.
+       * @throws DBLib.DBError.RESULT_ERROR if an error occurs while fetching the resultset.
+       */
+      public override DBLib.Statement execute_binary( DBLib.Statement statment, SelectStatementBinaryCallback? callback = null ) throws DBLib.DBError.STATEMENT_ERROR, DBLib.DBError.RESULT_ERROR
+      {
+        string final_code;
+        string[] binds = statment.get_binds( );
+        if ( binds.length > 0 )
+        {
+          final_code = this.get_final_code( statment );
+        }
+        else
+        {
+          final_code = statment.to_sql( );
+        }
+
+        this.execute_query( final_code );
+        if ( callback != null )
+        {
+          try
+          {
+            char ** data = null;
+            ulong[] array_lengths = null;
+            DBLib.Result result = this.get_result( false );
+            while ( ( data = result.fetchrow_binary( out array_lengths ) ) != null )
+            {
+              callback( data, array_lengths );
+            }
+          }
+          catch( Error e )
+          {
+            throw new DBLib.DBError.STATEMENT_ERROR( e.message );
+          }
+        }
+
+        return statment;
+      }
+
+      public string escape( string? val )
+      {
+        if ( val == null )
+        {
+          return "NULL";
+        }
+        else
+        {
+          string escaped = string.nfill( val.length * 2 + 1, ' ' );
+          ulong res_len = this.dbh.real_escape_string( escaped, val, val.length );
+          return "\"" + escaped + "\"";
+        }
       }
     }
 
