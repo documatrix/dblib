@@ -223,12 +223,6 @@ public class TestDBLib
     {
       assert_not_reached( );
     }
-
-    assert( c.escape( "value" ) == "\"value\"" );
-    assert( c.escape( "value\"" ) == "\"value\\\"\"" );
-    assert( c.escape( "value'" ) == "\"value\\'\"" );
-    assert( c.escape( "value\\" ) == "\"value\\\\\"" );
-    assert( c.escape( null ) == "NULL" );
   }
   
   /**

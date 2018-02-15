@@ -21,7 +21,8 @@ namespace DBLib
    */
   public enum DBType
   {
-    MYSQL;
+    MYSQL,
+    SQLITE;
   }
 
   /**
@@ -46,7 +47,7 @@ namespace DBLib
      * @return A connection object which represents the database connection.
      * @throws DBError This error will be thrown if an error occurs while connecting to the database.
      */
-    public static Connection connect( DBType db_type, string connection_string, string? user, string? password ) throws DBError.CONNECTION_ERROR
+    public static Connection connect( DBType db_type, string connection_string, string? user = null, string? password = null ) throws DBError.CONNECTION_ERROR
     {
       DMLogger.log.debug( 0, false, "Connecting to database." );
 
@@ -57,44 +58,14 @@ namespace DBLib
         case DBType.MYSQL:
           DMLogger.log.debug( 0, false, "Connecting to a MySQL database using connection string ${1}, user ${2} and password ${3}", connection_string, user ?? "(null)", password ?? "(null)" );
           return new DBLib.MySQL.Connection( dsn, user, password );
+        case DBType.SQLITE:
+          DMLogger.log.debug( 0, false, "Connecting to a SQLite database using connection string ${1}", connection_string );
+          return new DBLib.SQLite.Connection( dsn );
 
         default:
           throw new DBError.CONNECTION_ERROR( "Undefined database type passed!" );
       }
     }
-
-    /**
-     * This method can be used to create (prepare) a statement using this connection.
-     * @param stmt A string which will be used as statement code.
-     * @return A new created statement object.
-     */
-    public Statement prepare( string stmt )
-    {
-      return new Statement( this, stmt );
-    }
-
-    /**
-     * This method will execute a given statement.
-     * The statement will be prepared first. Then the given parameters will be substituted.
-     * Then the statement is executed.
-     * @param stmt A string which will be used as statement code.
-     * @param ... Values which will be used to replace given question marks with the escaped values.
-     * @return The prepared and executed statement.
-     * @throws DBLib.DBError.STATEMENT_ERROR if an error occurs while executing the statement.
-     * @throws DBLib.DBError.RESULT_ERROR if an error occurs while fetching the resultset.
-     */
-    public DBLib.Statement execute( string stmt, ... ) throws DBLib.DBError.STATEMENT_ERROR, DBLib.DBError.RESULT_ERROR
-    {
-      va_list params = va_list( );
-      return new Statement.with_params( this, stmt, params ).execute( );
-    }
-
-    /**
-     * This method will escape the given string using the database specific escape method.
-     * @param val The value which should be escaped so it can be used in a statement as string value.
-     * @return The given value which was escaped using the database specific escape method.
-     */
-    public abstract string escape( string? val );
 
     /**
      * This method will execute the given query using the database specific execute_query method.
@@ -115,6 +86,100 @@ namespace DBLib
      * It will try to get this value using a method on the database specific connector.
      */
     public abstract uint64 get_insert_id( );
+
+    public SelectStatement select( ... )
+    {
+      va_list args = va_list( );
+
+      string[] columns = {};
+      for ( string? str = args.arg<string?>( ); str != null; str = args.arg<string?>( ) )
+      {
+        columns += (!)str;
+      }
+
+      return new SelectStatement( this, columns );
+    }
+
+    public InsertStatement insert( )
+    {
+      return new InsertStatement( this );
+    }
+
+    public UpdateStatement update( string table_name )
+    {
+      return new UpdateStatement( this, table_name );
+    }
+
+    public DeleteStatement @delete( )
+    {
+      return new DeleteStatement( this );
+    }
+
+    public Statement prepare( string stmt )
+    {
+      return new Statement( this, stmt );
+    }
+
+    /**
+     * This method will replace the question marks in the statement code by the given parameters and will execute
+     * the statement.
+     * @param server_side_result This parameter indicates if the result of the statement should be stored on the server (true) or loaded to the client (false).
+     * @return The executed statement.
+     * @throws DBLib.DBError.STATEMENT_ERROR if an error occurs while replacing the parameters or while executing the statement.
+     * @throws DBLib.DBError.RESULT_ERROR if an error occurs while fetching the resultset.
+     */
+    public abstract DBLib.Statement execute_binary( DBLib.Statement statment, SelectStatementBinaryCallback? callback = null ) throws DBLib.DBError.STATEMENT_ERROR, DBLib.DBError.RESULT_ERROR;
+
+
+    /**
+     * This method will execute a given statement.
+     * The statement will be prepared first. Then the given parameters will be substituted.
+     * Then the statement is executed.
+     * @param stmt A string which will be used as statement code.
+     * @param ... Values which will be used to replace given question marks with the escaped values.
+     * @return The prepared and executed statement.
+     * @throws DBLib.DBError.STATEMENT_ERROR if an error occurs while executing the statement.
+     * @throws DBLib.DBError.RESULT_ERROR if an error occurs while fetching the resultset.
+     */
+    public DBLib.Statement execute( string stmt, ... ) throws DBLib.DBError.STATEMENT_ERROR, DBLib.DBError.RESULT_ERROR
+    {
+      va_list params = va_list( );
+      return new Statement.with_params( this, stmt, params ).execute( );
+    }
+
+
+    /**
+     * This method will replace the question marks in the statement code by the given parameters and will execute
+     * the statement.
+     * @return The executed statement.
+     * @throws DBLib.DBError.STATEMENT_ERROR if an error occurs while replacing the parameters or while executing the statement.
+     * @throws DBLib.DBError.RESULT_ERROR if an error occurs while fetching the resultset.
+     */
+    public DBLib.Statement execute_statment( DBLib.Statement statment, SelectStatementCallback? callback = null ) throws DBLib.DBError.STATEMENT_ERROR, DBLib.DBError.RESULT_ERROR
+    {
+      if ( callback == null )
+      {
+        this.execute_binary( statment, null );
+      }
+      else
+      {
+        this.execute_binary( statment, ( data, array_lengths ) =>
+        {
+          string[] values = new string[ array_lengths.length ];
+          values.length = array_lengths.length;
+          for ( int i = 0; i < array_lengths.length; i ++ )
+          {
+            char* string_data = data[ i ];
+            values[ i ] = (string)string_data;
+          }
+
+          callback( values );
+          return 0;
+        } );
+      }
+
+      return statment;
+    }
   }
 
   /**
@@ -182,7 +247,7 @@ namespace DBLib
      * @param conn The connection to use to fetch the resultset.
      * @param server_side_result @see DBLib.Result.server_side_result.
      */
-    public Result( DBLib.MySQL.Connection conn, bool server_side_result )
+    public Result( DBLib.Connection conn, bool server_side_result )
     {
       this.conn = conn;
       this.server_side_result = server_side_result;
@@ -208,37 +273,35 @@ namespace DBLib
     public abstract char** fetchrow_binary( out ulong[] array_length );
   }
 
-  /**
-   * Objects of this class represent a statement which can be executed using a DBLib.Connection.
-   */
+  public delegate int SelectStatementCallback( string[] values );
+
+  public delegate int SelectStatementBinaryCallback( char** data, ulong[] array_length );
+
   public class Statement : GLib.Object
   {
-    /**
-     * This connection will be used to execute the statement.
-     */
     public Connection conn;
 
-    /**
-     * This is the code of the statement.
-     */
+    public Result result;
+
     public string code;
 
-    /**
-     * This array may contain parameters which will used to generate the final code.
-     */
-    private string?[] params = { };
+    public string to_sql( )
+    {
+      return this.code;
+    }
 
-    /**
-     * This variable contains the result of the query (even if the statement was no select statement).
-     */
-    public DBLib.Result result;
+    private string[] binds = {};
+
+    protected uint16 next_bind_value = 1;
 
     /**
      * This constructor creates a new Statement object which will be executed on the given connection.
+     * It will also replace the given parameters from a va_list with the quotation marks in the statement code.
      * @param conn A connection object which will be used to execute the statement.
      * @param code The statement code.
+     * @param params A va_list object which may contain strings.
      */
-    public Statement( Connection conn, string code )
+    public Statement( Connection conn, string code)
     {
       this.conn = conn;
       this.code = code;
@@ -253,107 +316,252 @@ namespace DBLib
      */
     public Statement.with_params( Connection conn, string code, va_list params )
     {
-      this( conn, code );
+      this.conn = conn;
+      this.code = code;
 
       unowned string? param;
       while ( ( param = params.arg( ) ) != null )
       {
-        this.params += param;
+        this.binds += param;
       }
     }
 
-    /**
-     * This method can be used to set the statement parameters.
-     * It will overwrite any previously set parameters.
-     */
-    public void set_params( string?[] params )
+    public Statement execute( )
     {
-      this.params = params;
+      this.conn.execute_statment( this );
+      this.result = this.conn.get_result( false );
+      return this;
     }
 
-
-    /**
-     * This method will generate the final statement code using the given code and specified parameters.
-     * It will replace question marks in the statement code and replace them with the escaped params.
-     * @return The final statement code.
-     * @throws DBLib.DBError.STATEMENT_ERROR if an error occurs while replacing the parameters.
-     */
-    public string get_final_code( ) throws DBLib.DBError.STATEMENT_ERROR
+    public void set_params( string[] binds )
     {
-      char c;
-      int code_length = this.code.length;
-      int next_parameter = 0;
-      StringBuilder final_code = new StringBuilder.sized( code_length );
+      this.binds = binds;
+    }
 
-      for ( int i = 0; i < code_length; i ++ )
+    protected void add_bind( string bind )
+    {
+      this.binds += bind;
+    }
+
+    public string[] get_binds( )
+    {
+      return this.binds;
+    }
+  }
+
+  public class InsertStatement : Statement
+  {
+    public string table;
+
+    private string[] _columns = {};
+
+    public InsertStatement( Connection connection )
+    {
+      base( connection, "" );
+    }
+
+    public InsertStatement into( string table )
+    {
+      this.table = table;
+
+      return this;
+    }
+
+    public InsertStatement columns( ... )
+    {
+      va_list args = va_list( );
+      for ( string? str = args.arg<string?>( ); str != null; str = args.arg<string?>( ) )
       {
-        c = this.code[ i ];
-
-        if ( c == '?' )
-        {
-          /* Get the next parameter and escape it. */
-          if ( next_parameter >= this.params.length )
-          {
-            /* There is no more parameter! */
-            DMLogger.log.error( 0, false, "Error while generating final statement code for statement ${1}! Expected ${1} parameters but only ${3} were sepcified! ${4}", this.code, ( next_parameter + 1 ).to_string( ), this.params.length.to_string( ), this.get_params_string( )
-            );
-            for ( int j = 0; j < this.params.length; j ++ )
-            {
-              DMLogger.log.error( 0, false, "Parameter ${1}: ${2}", ( j + 1 ).to_string( ), this.params[ j ] ?? "NULL" );
-            }
-            throw new DBLib.DBError.STATEMENT_ERROR( "Error while generating final statement code for statement %s! Expected %d parameters but only %d were sepcified! %s", this.code, next_parameter + 1, this.params.length, this.get_params_string( ) );
-          }
-
-          final_code.append( this.conn.escape( this.params[ next_parameter ] ) );
-          next_parameter ++;
-        }
-        else
-        {
-          final_code.append_c( c );
-        }
+        this._columns += str;
       }
 
-      return final_code.str;
+      return this;
     }
 
-    /**
-     * This method convert the params array into a readable log string.
-     * @return The params as a string for a log message.
-     */
-    public string get_params_string( )
+    public InsertStatement values( ... )
     {
-      string param_string = "";
-      for( int i = 0; i < this.params.length; i ++ )
+      va_list args = va_list( );
+      for ( string? str = args.arg<string?>( ); str != null; str = args.arg<string?>( ) )
       {
-        param_string += "\nParams %d: %s".printf( i, this.params[ i ] );
+        this.add_bind( str );
       }
-      return param_string;
+
+      return this;
     }
 
-    /**
-     * This method will replace the question marks in the statement code by the given parameters and will execute
-     * the statement.
-     * @param server_side_result This parameter indicates if the result of the statement should be stored on the server (true) or loaded to the client (false).
-     * @return The executed statement.
-     * @throws DBLib.DBError.STATEMENT_ERROR if an error occurs while replacing the parameters or while executing the statement.
-     * @throws DBLib.DBError.RESULT_ERROR if an error occurs while fetching the resultset.
-     */
-    public DBLib.Statement execute( bool server_side_result = false ) throws DBLib.DBError.STATEMENT_ERROR, DBLib.DBError.RESULT_ERROR
+    public new string to_sql( )
     {
-      string final_code;
-      if ( this.params.length > 0 )
+      string[] qm = {};
+
+      for ( int i = 0; i < this.get_binds( ).length; i ++ )
       {
-        final_code = this.get_final_code( );
+        qm += "?";
+      }
+
+      return "INSERT INTO %s (%s) values (%s)".printf(
+                     this.table,
+                     string.joinv( ",", this._columns ),
+                     string.joinv( ",", qm )
+                   );
+    }
+  }
+
+  public class UpdateStatement : Statement
+  {
+    public string table;
+
+    public string where_clause = "";
+
+    private string[] columns = {};
+
+    public UpdateStatement( Connection connection, string table )
+    {
+      base( connection, "" );
+      this.table = table;
+    }
+
+    public UpdateStatement @set( string column, string val )
+    {
+      this.columns += column + " = ?";
+      this.add_bind( val );
+
+      return this;
+    }
+
+    public UpdateStatement where( string clause, ... )
+    {
+      this.where_clause = "WHERE " + clause;
+
+      va_list args = va_list( );
+      for ( string? str = args.arg<string?>( ); str != null; str = args.arg<string?>( ) )
+      {
+        this.add_bind( str );
+      }
+
+      return this;
+    }
+
+    public new string to_sql( )
+    {
+      return "UPDATE %s SET %s %s".printf(
+                     this.table,
+                     string.joinv( ",", this.columns ),
+                     this.where_clause
+                   );
+    }
+  }
+
+  public class DeleteStatement : Statement
+  {
+    public string table;
+
+    public string where_clause = "";
+
+    public DeleteStatement( Connection connection )
+    {
+      base( connection, "" );
+    }
+
+    public DeleteStatement from( string table )
+    {
+      this.table = table;
+
+      return this;
+    }
+
+    public DeleteStatement where( string clause, ... )
+    {
+      this.where_clause = "WHERE " + clause;
+
+      va_list args = va_list( );
+      for ( string? str = args.arg<string?>( ); str != null; str = args.arg<string?>( ) )
+      {
+        this.add_bind( str );
+      }
+
+      return this;
+    }
+
+    public new string to_sql( )
+    {
+      return "DELETE FROM %s %s".printf(
+                     this.table,
+                     this.where_clause
+                   );
+    }
+  }
+
+  public class SelectStatement : Statement
+  {
+    public string[] columns;
+
+    public string table_name;
+
+    private string? where_clause = null;
+
+    public SelectStatement( Connection connection, string[] columns )
+    {
+      base( connection, "" );
+      this.columns = columns;
+    }
+
+    public SelectStatement.with_sql( Connection connection, string sqlcode )
+    {
+      base( connection, code );
+    }
+
+    public SelectStatement from( string table_name )
+    {
+      this.table_name = table_name;
+
+      return this;
+    }
+
+    private void add_to_where_clause( string clause )
+    {
+      if ( this.where_clause == null )
+      {
+        this.where_clause = "where ";
       }
       else
       {
-        final_code = this.code;
+        this.where_clause += " and ";
       }
 
-      this.conn.execute_query( final_code );
-      this.result = this.conn.get_result( server_side_result );
+      this.where_clause += "(%s)".printf( clause );
+    }
+
+    public SelectStatement where( string clause, ... )
+    {
+      this.add_to_where_clause( clause );
+
+      va_list args = va_list( );
+      for ( string? str = args.arg<string?>( ); str != null; str = args.arg<string?>( ) )
+      {
+        this.add_bind( str );
+      }
 
       return this;
+    }
+
+    public new void exec( SelectStatementCallback callback ) throws DBError
+    {
+      this.conn.execute_statment( this, callback );
+    }
+
+    public new void execute_binary( SelectStatementBinaryCallback callback ) throws DBError
+    {
+      this.conn.execute_binary( this, callback );
+    }
+
+    public new string to_sql( )
+    {
+      if ( this.code != null )
+      {
+        return (!)this.code;
+      }
+
+      return "select %s from %s %s".printf( string.joinv( ", ", this.columns ), this.table_name, this.where_clause ?? "" );
     }
   }
 }
