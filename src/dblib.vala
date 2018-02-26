@@ -285,11 +285,6 @@ namespace DBLib
 
     public string code;
 
-    public string to_sql( )
-    {
-      return this.code;
-    }
-
     private string[] binds = {};
 
     protected uint16 next_bind_value = 1;
@@ -331,6 +326,11 @@ namespace DBLib
       this.conn.execute_statment( this );
       this.result = this.conn.get_result( false );
       return this;
+    }
+
+    public virtual string to_sql( )
+    {
+      return this.code;
     }
 
     public void set_params( string[] binds )
@@ -389,7 +389,7 @@ namespace DBLib
       return this;
     }
 
-    public new string to_sql( )
+    public override string to_sql( )
     {
       string[] qm = {};
 
@@ -441,7 +441,7 @@ namespace DBLib
       return this;
     }
 
-    public new string to_sql( )
+    public override string to_sql( )
     {
       return "UPDATE %s SET %s %s".printf(
                      this.table,
@@ -482,7 +482,7 @@ namespace DBLib
       return this;
     }
 
-    public new string to_sql( )
+    public override string to_sql( )
     {
       return "DELETE FROM %s %s".printf(
                      this.table,
@@ -498,6 +498,12 @@ namespace DBLib
     public string table_name;
 
     private string? where_clause = null;
+
+    private string? _limit = null;
+
+    private string[] _order_by = {};
+
+    private string[] _group_by = {};
 
     public SelectStatement( Connection connection, string[] columns )
     {
@@ -544,24 +550,60 @@ namespace DBLib
       return this;
     }
 
-    public new void exec( SelectStatementCallback callback ) throws DBError
+    public SelectStatement limit( string limit )
+    {
+      this._limit = limit;
+      return this;
+    }
+
+    public SelectStatement order_by( string order_by )
+    {
+      this._order_by += order_by;
+      return this;
+    }
+
+    public SelectStatement group_by( string group_by )
+    {
+      this._group_by += group_by;
+      return this;
+    }
+
+    public void exec( SelectStatementCallback callback ) throws DBError
     {
       this.conn.execute_statment( this, callback );
     }
 
-    public new void execute_binary( SelectStatementBinaryCallback callback ) throws DBError
+    public void execute_binary( SelectStatementBinaryCallback callback ) throws DBError
     {
       this.conn.execute_binary( this, callback );
     }
 
-    public new string to_sql( )
+    public string get_suffix( )
     {
-      if ( this.code != null )
+      string suffix = "";
+      if ( this._group_by.length > 0 )
       {
-        return (!)this.code;
+        suffix = suffix.concat( " GROUP BY ", string.joinv( ", ", this._group_by ) );
+      }
+      if ( this._order_by.length > 0 )
+      {
+        suffix = suffix.concat( " ORDER BY ", string.joinv( ", ", this._order_by ) );
+      }
+      if ( this._limit != null )
+      {
+        suffix = suffix.concat( " LIMIT ", this._limit );
+      }
+      return suffix;
+    }
+
+    public override string to_sql( )
+    {
+      if ( this.code != "" )
+      {
+        return base.to_sql( );
       }
 
-      return "select %s from %s %s".printf( string.joinv( ", ", this.columns ), this.table_name, this.where_clause ?? "" );
+      return "select %s from %s %s".printf( string.joinv( ", ", this.columns ), this.table_name, this.where_clause ?? "" ) + this.get_suffix( );
     }
   }
 }

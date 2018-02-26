@@ -145,7 +145,6 @@ namespace DBLib
             final_code.append_c( c );
           }
         }
-
         return final_code.str;
       }
 
