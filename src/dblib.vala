@@ -550,6 +550,18 @@ namespace DBLib
       return this;
     }
 
+    public SelectStatement wherev( string clause, string[] args )
+    {
+      this.add_to_where_clause( clause );
+
+      foreach ( string str in args )
+      {
+        this.add_bind( str );
+      }
+
+      return this;
+    }
+
     public SelectStatement limit( string limit )
     {
       this._limit = limit;
