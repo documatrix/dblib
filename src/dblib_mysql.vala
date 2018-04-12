@@ -103,6 +103,55 @@ namespace DBLib
         return this.dbh.insert_id( );
       }
 
+      public override string column_definition_to_sql( ColumnDefinition column )
+      {
+        string column_sql = "`%s` %s".printf( column.name, column.data_type.to_string( ) );
+        if ( column.size != 0 )
+        {
+          column_sql = column_sql.concat( "(%u)".printf( column.size ) );
+        }
+        if ( column.is_unsigned )
+        {
+          column_sql = column_sql.concat( " UNSIGNED" );
+        }
+        if ( column.is_nullable )
+        {
+          column_sql = column_sql.concat( " NULL" );
+        }
+        else
+        {
+          column_sql = column_sql.concat( " NOT NULL" );
+        }
+
+        switch ( column.default_value_type )
+        {
+          case DefaultValueType.NO_DEFAULT:
+            break;
+          case DefaultValueType.NULL:
+            column_sql = column_sql.concat( " DEFAULT NULL" );
+            break;
+          case DefaultValueType.CURRENT_TIMESTAMP:
+            column_sql = column_sql.concat( " DEFAULT CURRENT_TIMESTAMP" );
+            break;
+          case DefaultValueType.AUTO_INCREMENT:
+            column_sql = column_sql.concat( " AUTO_INCREMENT" );
+            break;
+          case DefaultValueType.CUSTOM:
+            column_sql = column_sql.concat( " DEFAULT '%s'".printf( column.default_value ) );
+            break;
+        }
+
+        return column_sql;
+      }
+
+      /**
+       * @see DBLib.Connection.quote
+       */
+      public override string quote( string val )
+      {
+        return "`".concat( val, "`" );
+      }
+
       /**
        * This method will generate the final statement code using the given code and specified parameters.
        * It will replace question marks in the statement code and replace them with the escaped params.

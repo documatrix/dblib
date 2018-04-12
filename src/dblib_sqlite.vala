@@ -75,6 +75,19 @@ namespace DBLib
         return this.database.last_insert_rowid( );
       }
 
+      public override string column_definition_to_sql( ColumnDefinition column )
+      {
+        return "";
+      }
+
+      /**
+       * @see DBLib.Connection.quote
+       */
+      public override string quote( string val )
+      {
+        return "'".concat( val, "'" );
+      }
+
       /**
        * This method will return the current SQLite error message.
        * @return The current SQLite error.

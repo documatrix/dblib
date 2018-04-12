@@ -87,6 +87,10 @@ namespace DBLib
      */
     public abstract uint64 get_insert_id( );
 
+    public abstract string column_definition_to_sql( ColumnDefinition column );
+
+    public abstract string quote( string val );
+
     public SelectStatement select( ... )
     {
       va_list args = va_list( );
@@ -113,6 +117,11 @@ namespace DBLib
     public DeleteStatement @delete( )
     {
       return new DeleteStatement( this );
+    }
+
+    public CreateTableStatement create_table( string table_name )
+    {
+      return new CreateTableStatement( this, table_name );
     }
 
     public Statement prepare( string stmt )
@@ -321,7 +330,7 @@ namespace DBLib
       }
     }
 
-    public Statement execute( )
+    public Statement execute( ) throws DBLib.DBError
     {
       this.conn.execute_statment( this );
       this.result = this.conn.get_result( false );
@@ -448,6 +457,169 @@ namespace DBLib
                      string.joinv( ",", this.columns ),
                      this.where_clause
                    );
+    }
+  }
+
+  public enum DataType
+  {
+    TINYINT,
+    SMALLINT,
+    MEDIUMINT,
+    INT,
+    BIGINT,
+    BIT,
+    FLOAT,
+    DOUBLE,
+    DECIMAL,
+    CHAR,
+    VARCHAR,
+    TINYTEXT,
+    TEXT,
+    MEDIUMTEXT,
+    LONGTEXT,
+    BINARY,
+    VARBINARY,
+    TINYBLOB,
+    BLOB,
+    MEDIUMBLOB,
+    LONGBLOB,
+    DATE,
+    TIME,
+    YEAR,
+    DATETIME,
+    TIMESTAMP;
+
+    public string to_string( )
+    {
+      switch ( this )
+      {
+        case TINYINT:
+          return "TINYINT";
+        case SMALLINT:
+          return "SMALLINT";
+        case MEDIUMINT:
+          return "MEDIUMINT";
+        case INT:
+          return "INT";
+        case BIGINT:
+          return "BIGINT";
+        case BIT:
+          return "BIT";
+        case FLOAT:
+          return "FLOAT";
+        case DOUBLE:
+          return "DOUBLE";
+        case DECIMAL:
+          return "DECIMAL";
+        case CHAR:
+          return "CHAR";
+        case VARCHAR:
+          return "VARCHAR";
+        case TINYTEXT:
+          return "TINYTEXT";
+        case TEXT:
+          return "TEXT";
+        case MEDIUMTEXT:
+          return "MEDIUMTEXT";
+        case LONGTEXT:
+          return "LONGTEXT";
+        case BINARY:
+          return "BINARY";
+        case VARBINARY:
+          return "VARBINARY";
+        case TINYBLOB:
+          return "TINYBLOB";
+        case BLOB:
+          return "BLOB";
+        case MEDIUMBLOB:
+          return "MEDIUMBLOB";
+        case LONGBLOB:
+          return "LONGBLOB";
+        case DATE:
+          return "DATE";
+        case TIME:
+          return "TIME";
+        case YEAR:
+          return "YEAR";
+        case DATETIME:
+          return "DATETIME";
+        case TIMESTAMP:
+          return "TIMESTAMP";
+      }
+      return "";
+    }
+  }
+
+  public enum DefaultValueType
+  {
+    NO_DEFAULT,
+    NULL,
+    CURRENT_TIMESTAMP,
+    AUTO_INCREMENT,
+    CUSTOM;
+  }
+
+  public class ColumnDefinition : GLib.Object
+  {
+    public string name;
+    public DataType data_type;
+    public uint32 size;
+    public bool is_unsigned;
+    public bool is_nullable;
+    public DefaultValueType default_value_type;
+    public string default_value;
+    public bool is_primary_key;
+
+    public ColumnDefinition( string name, DataType data_type, uint32 size, bool is_unsigned, bool is_nullable, DefaultValueType default_value_type, string default_value = "", bool is_primary_key = false )
+    {
+      this.name = name;
+      this.data_type = data_type;
+      this.size = size;
+      this.is_unsigned = is_unsigned;
+      this.is_nullable = is_nullable;
+      this.default_value_type = default_value_type;
+      this.default_value = default_value;
+      this.is_primary_key = is_primary_key;
+    }
+  }
+
+  public class CreateTableStatement : Statement
+  {
+    public string table;
+
+    private ColumnDefinition[] column_definitions = {};
+
+    public CreateTableStatement( Connection connection, string table )
+    {
+      base( connection, "" );
+      this.table = table;
+    }
+
+    public CreateTableStatement columns( ColumnDefinition[] column_definitions )
+    {
+      this.column_definitions = column_definitions;
+      return this;
+    }
+
+    public override string to_sql( )
+    {
+      string[] columns = {};
+      string primary_key = "";
+      foreach ( unowned ColumnDefinition c in this.column_definitions )
+      {
+        columns += this.conn.column_definition_to_sql( c );
+        if ( c.is_primary_key )
+        {
+          primary_key = "PRIMARY KEY (%s)".printf( this.conn.quote( c.name ) );
+        }
+      }
+      // TODO handle constraints correctly
+      columns += primary_key;
+
+      return "CREATE TABLE IF NOT EXISTS %s ( %s )".printf(
+        this.conn.quote( this.table ),
+        string.joinv( ",", columns )
+      );
     }
   }
 
