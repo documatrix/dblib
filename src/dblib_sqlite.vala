@@ -127,21 +127,31 @@ namespace DBLib
         }
 
         int next_bind_value = 0;
-        foreach( string val in statment.get_binds( ) )
+        void*[] binds = statment.get_binds( );
+        Type[] types = statment.get_types( );
+        for ( int i = 0; i < types.length; i ++ )
         {
-          stmt.bind_text( next_bind_value, val );
+          if ( types[i] == typeof( string ) )
+          {
+            stmt.bind_text( next_bind_value, (string)binds[ i ] );
+          }
+          else
+          {
+            throw new DBLib.DBError.STATEMENT_ERROR( "Unimplemente Type %s", types[ i ].name( ) );
+          }
+
           next_bind_value ++;
         }
 
         int cols = stmt.column_count( );
+        statment.result = this.get_result( false );
         if ( callback != null )
         {
           try
           {
-            char ** data = null;
+            void*[] data = null;
             ulong[] array_lengths = null;
-            DBLib.Result result = this.get_result( false );
-            while ( ( data = result.fetchrow_binary( out array_lengths ) ) != null )
+            while ( ( data = statment.result.fetchrow_binary( out array_lengths ) ) != null )
             {
               callback( data, array_lengths );
             }
@@ -222,16 +232,16 @@ namespace DBLib
       /**
        * @see DBLib.Result.fetchrow_binary
        */
-      public override char** fetchrow_binary( out ulong[] array_length )
+      public override void*[] fetchrow_binary( out ulong[] array_length )
       {
         array_length = new ulong[ this.column_count ];
         if ( stmt.step () == Sqlite.ROW )
         {
-          char** data = (char**)malloc( sizeof(char*) * this.column_count );
+          void*[] data = new void*[ this.column_count ];
           for ( int i = 0; i < this.column_count; i++ )
           {
             array_length[ i ] = this.stmt.column_bytes( i );
-            data[ i ] = (char*)this.stmt.column_blob( i );
+            data[ i ] = this.stmt.column_blob( i );
           }
           return data;
         }

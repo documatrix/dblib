@@ -153,65 +153,6 @@ namespace DBLib
       }
 
       /**
-       * This method will generate the final statement code using the given code and specified parameters.
-       * It will replace question marks in the statement code and replace them with the escaped params.
-       * @return The final statement code.
-       * @throws DBLib.DBError.STATEMENT_ERROR if an error occurs while replacing the parameters.
-       */
-      public string get_final_code( DBLib.Statement statment ) throws DBLib.DBError.STATEMENT_ERROR
-      {
-        char c;
-        string code = statment.to_sql( );
-        int code_length = code.length;
-        int next_parameter = 0;
-        StringBuilder final_code = new StringBuilder.sized( code_length );
-
-        string[] params = statment.get_binds( );
-        for ( int i = 0; i < code_length; i ++ )
-        {
-          c = code[ i ];
-
-          if ( c == '?' )
-          {
-            /* Get the next parameter and escape it. */
-            if ( next_parameter >= params.length )
-            {
-              /* There is no more parameter! */
-              DMLogger.log.error( 0, false, "Error while generating final statement code for statement ${1}! Expected ${1} parameters but only ${3} were sepcified! ${4}", code, ( next_parameter + 1 ).to_string( ), params.length.to_string( ), this.get_params_string( params )
-              );
-              for ( int j = 0; j < params.length; j ++ )
-              {
-                DMLogger.log.error( 0, false, "Parameter ${1}: ${2}", ( j + 1 ).to_string( ), params[ j ] ?? "NULL" );
-              }
-              throw new DBLib.DBError.STATEMENT_ERROR( "Error while generating final statement code for statement %s! Expected %d parameters but only %d were sepcified! %s", code, next_parameter + 1, params.length, this.get_params_string( params ) );
-            }
-
-            final_code.append( this.escape( params[ next_parameter ] ) );
-            next_parameter ++;
-          }
-          else
-          {
-            final_code.append_c( c );
-          }
-        }
-        return final_code.str;
-      }
-
-    /**
-     * This method convert the params array into a readable log string.
-     * @return The params as a string for a log message.
-     */
-    public string get_params_string( string[] params )
-    {
-      string param_string = "";
-      for( int i = 0; i < params.length; i ++ )
-      {
-        param_string += "\nParams %d: %s".printf( i, params[ i ] );
-      }
-      return param_string;
-    }
-
-      /**
        * This method will replace the question marks in the statement code by the given parameters and will execute
        * the statement.
        * @return The executed statement.
@@ -220,36 +161,19 @@ namespace DBLib
        */
       public override DBLib.Statement execute_binary( DBLib.Statement statment, SelectStatementBinaryCallback? callback = null ) throws DBLib.DBError.STATEMENT_ERROR, DBLib.DBError.RESULT_ERROR
       {
-        string final_code;
-        string[] binds = statment.get_binds( );
-        if ( binds.length > 0 )
-        {
-          final_code = this.get_final_code( statment );
-        }
-        else
-        {
-          final_code = statment.to_sql( );
-        }
+        MySQL.Result result = new Result( this, false );
+        result.init( statment );
+        statment.result = result;
 
-        this.execute_query( final_code );
         if ( callback != null )
         {
-          try
+          void*[] data = null;
+          ulong[] data_length;
+          while( statment.result.fetchrow_binary( out data_length ) != null )
           {
-            char ** data = null;
-            ulong[] array_lengths = null;
-            DBLib.Result result = this.get_result( false );
-            while ( ( data = result.fetchrow_binary( out array_lengths ) ) != null )
-            {
-              callback( data, array_lengths );
-            }
-          }
-          catch( Error e )
-          {
-            throw new DBLib.DBError.STATEMENT_ERROR( e.message );
+            callback( data, data_length );
           }
         }
-
         return statment;
       }
 
@@ -273,15 +197,18 @@ namespace DBLib
      */
     public class Result : DBLib.Result
     {
-      /**
-       * The MySQL connection which is used to fetch the result.
-       */
-      private DBLib.MySQL.Connection mysql_conn;
+      private Mysql.Statment? stmt;
+
+      private ulong[] data_length;
+
+      private char[] test;
+
+      private Mysql.Bind[] mysql_binds;
 
       /**
        * The result object which was fetched from MySQL.
        */
-      private Mysql.Result? mysql_result;
+      private Mysql.Result? mysql_metadata;
 
       /**
        * This array may contain the field informations for the resultset.
@@ -296,25 +223,74 @@ namespace DBLib
       public Result( DBLib.MySQL.Connection conn, bool server_side_result ) throws DBLib.DBError.RESULT_ERROR
       {
         base( conn, server_side_result );
+      }
 
-        this.mysql_conn = (DBLib.MySQL.Connection)conn;
-
-        this.mysql_result = null;
-        if ( this.server_side_result )
+      public void init( DBLib.Statement statment )
+      {
+        string final_code = statment.to_sql( );
+        void*[] binds = statment.get_binds( );
+        Type[] types = statment.get_types( );
+        int result;
+        this.stmt = ( (DBLib.MySQL.Connection)this.conn ).dbh.create_statment( );
+        this.stmt.prepare( final_code, final_code.length );
         {
-          this.mysql_result = this.mysql_conn.dbh.use_result( );
+          Mysql.Bind[] mysql_binds = new Mysql.Bind[ types.length ];
+          for ( int i = 0; i < types.length; i ++ )
+          {
+            if ( types[ i ] == typeof( string ) )
+            {
+              mysql_binds[ i ].buffer_type = Mysql.FieldType.STRING;
+              mysql_binds[ i ].buffer_length = ( (string)binds[ i ] ).length;
+            }
+            else if ( types[ i ] == typeof( uint8[] ) )
+            {
+              mysql_binds[ i ].buffer_type = Mysql.FieldType.BLOB;
+              mysql_binds[ i ].buffer_length = ( (uint8[])binds[ i ] ).length;
+            }
+            else
+            {
+              throw new DBLib.DBError.STATEMENT_ERROR( "Unimplemente Type %s", types[ i ].name( ) );
+            }
+
+            mysql_binds[ i ].buffer = binds[ i ];
+          }
+          if ( this.stmt.bind_param( mysql_binds ) != 0 )
+          {
+            throw new DBLib.DBError.STATEMENT_ERROR( "Could not Bind Params %s", this.stmt.error( ) );
+          }
+        }
+
+        if ( this.stmt.execute( ) != 0 )
+        {
+          throw new DBLib.DBError.STATEMENT_ERROR( "Could not Execute %s", this.stmt.error( ) );
+        }
+        this.mysql_metadata = this.stmt.result_metadata( );
+        if ( this.mysql_metadata == null )
+        {
+          throw new DBLib.DBError.STATEMENT_ERROR( "Could not Read Metadata of Statment %s", this.stmt.error( ) );
         }
         else
         {
-          this.mysql_result = this.mysql_conn.dbh.store_result( );
-        }
+          this.mysql_fields = this.mysql_metadata.fetch_fields( );
+          this.mysql_binds = new Mysql.Bind[ this.mysql_fields.length ];
+          this.data_length = new ulong[ this.mysql_fields.length ];
 
-        /*
-         * When the acquired result is null there was maybe an error...
-         */
-        if ( this.mysql_result == null && this.mysql_conn.dbh.errno( ) != 0 )
-        {
-          throw new DBLib.DBError.RESULT_ERROR( "Error while fetching result from database server! %u: %s", this.mysql_conn.dbh.errno( ), this.mysql_conn.dbh.error( ) );
+          for( int i = 0; i < this.mysql_fields.length; i ++ )
+          {
+            uint8[] data = new uint8[ this.mysql_fields[ i ].length + 1 ];
+            this.mysql_binds[ i ].buffer_type = this.mysql_fields[ i ].type;
+            this.mysql_binds[ i ].buffer = &data;
+            this.mysql_binds[ i ].buffer_length = this.mysql_fields[ i ].length;
+            this.data_length[ i ] = this.mysql_fields[ i ].length;
+          }
+          if ( this.stmt.bind_result( mysql_binds ) != 0 )
+          {
+            throw new DBLib.DBError.STATEMENT_ERROR( "Could not Bind Result %s", this.stmt.error( ) );
+          }
+          if ( this.stmt.store_result( ) != 0 )
+          {
+            throw new DBLib.DBError.STATEMENT_ERROR( "Could not Store Result %s", this.stmt.error( ) );
+          }
         }
       }
 
@@ -323,15 +299,10 @@ namespace DBLib
        */
       public override HashTable<string?,string?>? fetchrow_hash( )
       {
-        string[]? row_data = this.mysql_result.fetch_row( );
+        string[]? row_data = this.fetch_row( );
         if ( row_data == null )
         {
           return null;
-        }
-
-        if ( this.mysql_fields == null )
-        {
-          this.mysql_fields = this.mysql_result.fetch_fields( );
         }
 
         HashTable<string?,string?> row = new HashTable<string?,string?>( str_hash, str_equal );
@@ -347,21 +318,32 @@ namespace DBLib
        */
       public override string[]? fetchrow_array( )
       {
-        return this.mysql_result.fetch_row( );
+        return this.fetch_row( );
       }
 
+      public string[]? fetch_row( )
+      {
+        ulong[] array_length;
+        void*[] array = this.fetchrow_binary( out array_length );
+        return (string[])array;
+      }
 
       /**
        * @see DBLib.Result.fetchrow_binary
        */
-      public override char** fetchrow_binary( out ulong[] array_length )
+      public override void*[] fetchrow_binary( out ulong[] array_length )
       {
-        char** data = this.mysql_result.fetch_row( );
-        if ( data == null )
+        if ( this.stmt.fetch( ) != 0 )
         {
           return null;
         }
-        array_length = this.mysql_result.fetch_lengths( );
+        void*[] data = new void*[ this.data_length.length ];
+        array_length = new ulong[ this.data_length.length ];
+        for( int i = 0; i < this.data_length.length; i ++ )
+        {
+          data[ i ] = this.mysql_binds[ i ].buffer;
+          array_length[ i ] = this.mysql_binds[ i ].buffer_length;
+        }
         return data;
       }
     }

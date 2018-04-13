@@ -279,12 +279,12 @@ namespace DBLib
      * This method will fetch the next row from the current resultset and will return the values as array.
      * @return The next row in the resultset or null if no more rows exist.
      */
-    public abstract char** fetchrow_binary( out ulong[] array_length );
+    public abstract void*[] fetchrow_binary( out ulong[] array_length );
   }
 
   public delegate int SelectStatementCallback( string[] values );
 
-  public delegate int SelectStatementBinaryCallback( char** data, ulong[] array_length );
+  public delegate int SelectStatementBinaryCallback( void*[] data, ulong[] array_length );
 
   public class Statement : GLib.Object
   {
@@ -294,7 +294,9 @@ namespace DBLib
 
     public string code;
 
-    private string[] binds = {};
+    private Type[] types = {};
+
+    private void*[] binds = {};
 
     protected uint16 next_bind_value = 1;
 
@@ -305,7 +307,7 @@ namespace DBLib
      * @param code The statement code.
      * @param params A va_list object which may contain strings.
      */
-    public Statement( Connection conn, string code)
+    public Statement( Connection conn, string code )
     {
       this.conn = conn;
       this.code = code;
@@ -327,13 +329,13 @@ namespace DBLib
       while ( ( param = params.arg( ) ) != null )
       {
         this.binds += param;
+        this.types += typeof( string );
       }
     }
 
     public Statement execute( ) throws DBLib.DBError
     {
       this.conn.execute_statment( this );
-      this.result = this.conn.get_result( false );
       return this;
     }
 
@@ -342,19 +344,29 @@ namespace DBLib
       return this.code;
     }
 
-    public void set_params( string[] binds )
+    public void set_params( void*[] binds )
     {
       this.binds = binds;
+      for ( int i = 0; i < binds.length; i ++ )
+      {
+        this.types += typeof( string );
+      }
     }
 
-    protected void add_bind( string bind )
+    protected void add_bind( void* bind, Type type = typeof( string ) )
     {
       this.binds += bind;
+      this.types += type;
     }
 
-    public string[] get_binds( )
+    public void*[] get_binds( )
     {
       return this.binds;
+    }
+
+    public Type[] get_types( )
+    {
+      return this.types;
     }
   }
 
@@ -390,9 +402,15 @@ namespace DBLib
     public InsertStatement values( ... )
     {
       va_list args = va_list( );
-      for ( string? str = args.arg<string?>( ); str != null; str = args.arg<string?>( ) )
+
+      Type? type = args.arg<Type?>( );
+      for (
+            string? str = args.arg<string?>( );
+            type != null && str != null; 
+            type = args.arg<Type?>( ), str = args.arg<string?>( )
+          )
       {
-        this.add_bind( str );
+        this.add_bind( str, type );
       }
 
       return this;
