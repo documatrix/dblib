@@ -43,7 +43,7 @@ OUTPUT_VARIABLE
   MYSQL_LIBS
 )
 # https://bugs.mysql.com/bug.php?id=86971
-string(REGEX REPLACE "-l$" "-lmysqlclient " MYSQL_LIBS ${MYSQL_LIBS})
+string(REGEX REPLACE "-l$" "-lmysqlclient" MYSQL_LIBS ${MYSQL_LIBS})
 
 EXEC_PROGRAM(
   which
