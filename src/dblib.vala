@@ -236,6 +236,117 @@ namespace DBLib
     }
   }
 
+  public class DBBind : GLib.Object
+  {
+    public Type type;
+    public string? as_string;
+    public uint8[]? as_array_u8;
+    public long as_long;
+    public int64 as_int64;
+    public uint8 as_uint8;
+
+    public DBBind( Type type, void* bind ) throws DBLib.DBError
+    {
+      this.type = type;
+      if ( this.type == typeof( string ) )
+      {
+        this.as_string = ( (string)bind).dup( );
+      }
+      else if ( this.type == typeof( uint8[] ) )
+      {
+        uint8[] data = (uint8[])bind;
+        this.as_array_u8 = new uint8[ data.length ];
+      }
+      else
+      {
+        throw new DBLib.DBError.STATEMENT_ERROR( "Unimplemente Bind Type %s in new DBBind", this.type.name( ) );
+      }
+    }
+    public DBBind.empty( Type type, ulong length )
+    {
+      this.type = type;
+      if ( this.type == typeof( string ) )
+      {
+        this.as_string = string.nfill( length, ' ' );
+      }
+      else if ( this.type == typeof( uint8[] ) )
+      {
+        this.as_array_u8 = new uint8[ length ];
+      }
+      else if ( this.type == typeof( long ) )
+      {
+        this.as_long = 0;
+      }
+      else if ( this.type == typeof( int64 ) )
+      {
+        this.as_int64 = 0;
+      }
+      else if ( this.type == typeof( uint8 ) )
+      {
+        this.as_uint8 = 0;
+      }
+      else
+      {
+        throw new DBLib.DBError.STATEMENT_ERROR( "Unimplemente Bind Type %s in new empty DBBind", this.type.name( ) );
+      }
+
+    }
+    public void* get_pointer( )
+    {
+      if ( this.type == typeof( string ) )
+      {
+        return this.as_string;
+      }
+      else if ( this.type == typeof( uint8[] ) )
+      {
+        return this.as_array_u8;
+      }
+      else if ( this.type == typeof( long ) )
+      {
+        return &this.as_long;
+      }
+      else if ( this.type == typeof( int64 ) )
+      {
+        return &this.as_int64;
+      }
+      else if ( this.type == typeof( uint8 ) )
+      {
+        return &this.as_uint8;
+      }
+      else
+      {
+        throw new DBLib.DBError.STATEMENT_ERROR( "Unimplemente Bind Type %s in get_pointer", this.type.name( ) );
+      }
+    }
+    public string get_string( )
+    {
+      if ( this.type == typeof( string ) )
+      {
+        return this.as_string;
+      }
+      else if ( this.type == typeof( uint8[] ) )
+      {
+        return (string)this.as_array_u8;
+      }
+      else if ( this.type == typeof( long ) )
+      {
+        return this.as_long.to_string( );
+      }
+      else if ( this.type == typeof( int64 ) )
+      {
+        return this.as_int64.to_string( );
+      }
+      else if ( this.type == typeof( uint8 ) )
+      {
+        return this.as_uint8.to_string( );
+      }
+      else
+      {
+        throw new DBLib.DBError.STATEMENT_ERROR( "Unimplemente Bind Type %s in get_string", this.type.name( ) );
+      }
+    }
+  }
+
   /**
    * Objects of this class represent a resultset which was fetched from the database server.
    */
@@ -280,6 +391,12 @@ namespace DBLib
      * @return The next row in the resultset or null if no more rows exist.
      */
     public abstract void*[] fetchrow_binary( out ulong[] array_length );
+
+    /**
+     * This method will fetch the next row from the current resultset and will return the values as array.
+     * @return The next row in the resultset or null if no more rows exist.
+     */
+    public abstract DBBind[]? fetchrow_bind( );
   }
 
   public delegate int SelectStatementCallback( string[] values );
@@ -294,9 +411,7 @@ namespace DBLib
 
     public string code;
 
-    private Type[] types = {};
-
-    private void*[] binds = {};
+    private DBBind[] binds = {};
 
     protected uint16 next_bind_value = 1;
 
@@ -328,8 +443,7 @@ namespace DBLib
       unowned string? param;
       while ( ( param = params.arg( ) ) != null )
       {
-        this.binds += param;
-        this.types += typeof( string );
+        this.binds += new DBBind( typeof( string ), param );
       }
     }
 
@@ -346,27 +460,20 @@ namespace DBLib
 
     public void set_params( void*[] binds )
     {
-      this.binds = binds;
       for ( int i = 0; i < binds.length; i ++ )
       {
-        this.types += typeof( string );
+        this.binds +=  new DBBind( typeof( string ), binds[ i ] );
       }
     }
 
     protected void add_bind( void* bind, Type type = typeof( string ) )
     {
-      this.binds += bind;
-      this.types += type;
+      this.binds += new DBBind( type, bind );
     }
 
-    public void*[] get_binds( )
+    public DBBind[] get_binds( )
     {
       return this.binds;
-    }
-
-    public Type[] get_types( )
-    {
-      return this.types;
     }
   }
 
@@ -375,6 +482,7 @@ namespace DBLib
     public string table;
 
     private string[] _columns = {};
+    private Type[] _types = {};
 
     public InsertStatement( Connection connection )
     {
@@ -391,11 +499,29 @@ namespace DBLib
     public InsertStatement columns( ... )
     {
       va_list args = va_list( );
-      for ( string? str = args.arg<string?>( ); str != null; str = args.arg<string?>( ) )
-      {
-        this._columns += str;
-      }
 
+      Type? type = args.arg<Type>( );
+      if ( type == null || type == 0 )
+      {
+        throw new DBLib.DBError.STATEMENT_ERROR( "No Data given" );
+      }
+      else
+      {
+        while( type != null && type != 0 )
+        {
+          string? str = args.arg<string>( );
+          if ( str == null )
+          {
+            throw new DBLib.DBError.STATEMENT_ERROR( "No String found for type %s", type.to_string( ) );
+          }
+          else
+          {
+            this._columns += str;
+            this._types += type;
+          }
+          type = args.arg<Type>( );
+        }
+      }
       return this;
     }
 
@@ -403,14 +529,10 @@ namespace DBLib
     {
       va_list args = va_list( );
 
-      Type? type = args.arg<Type?>( );
-      for (
-            string? str = args.arg<string?>( );
-            type != null && str != null; 
-            type = args.arg<Type?>( ), str = args.arg<string?>( )
-          )
+      int i = 0;
+      for ( void* data = args.arg<void*>( ); data != null && i < this._types.length; data = args.arg<void*>( ), i ++ )
       {
-        this.add_bind( str, type );
+        this.add_bind( data, this._types[ i ] );
       }
 
       return this;

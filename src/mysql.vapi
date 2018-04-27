@@ -230,8 +230,8 @@ namespace Mysql {
 		public Result? result_metadata ();
 		public int store_result ();
 		public int fetch ();
-		public string error( );
-		public int num_rows( );
+		public unowned string error ();
+		public int num_rows ();
 	}
 
 	[CCode (cname = "MYSQL_BIND", has_type_id = false)]

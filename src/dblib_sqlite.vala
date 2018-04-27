@@ -127,20 +127,10 @@ namespace DBLib
         }
 
         int next_bind_value = 0;
-        void*[] binds = statment.get_binds( );
-        Type[] types = statment.get_types( );
-        for ( int i = 0; i < types.length; i ++ )
+        DBBind[] binds = statment.get_binds( );
+        for ( int i = 0; i < binds.length; i ++ )
         {
-          if ( types[i] == typeof( string ) )
-          {
-            stmt.bind_text( next_bind_value, (string)binds[ i ] );
-          }
-          else
-          {
-            throw new DBLib.DBError.STATEMENT_ERROR( "Unimplemente Type %s", types[ i ].name( ) );
-          }
-
-          next_bind_value ++;
+          this.set_sqlite_bind( binds[ i ], stmt, ref next_bind_value );
         }
 
         int cols = stmt.column_count( );
@@ -162,6 +152,20 @@ namespace DBLib
           }
         }
         return statment;
+      }
+
+      public void set_sqlite_bind( DBBind bind, Sqlite.Statement stmt, ref int next_bind_value ) throws DBLib.DBError
+      {
+        if ( bind.type == typeof( string ) )
+        {
+          stmt.bind_text( next_bind_value, bind.as_string );
+        }
+        else
+        {
+          throw new DBLib.DBError.STATEMENT_ERROR( "Unimplemente SQLite Type %s", bind.type.name( ) );
+        }
+
+        next_bind_value ++;
       }
     }
 
@@ -203,9 +207,12 @@ namespace DBLib
           {
             row.insert( this.stmt.column_name( i ), this.stmt.column_text( i ) );
           }
+          return row;
         }
-        return row;
-
+        else
+        {
+          return null;
+        }
       }
 
       /**
@@ -248,6 +255,37 @@ namespace DBLib
         else
         {
           return null;
+        }
+      }
+
+      /**
+       * @see DBLib.Result.fetchrow_bind
+       */
+      public override DBBind[]? fetchrow_bind( )
+      {
+        if ( stmt.step () == Sqlite.ROW )
+        {
+          DBBind[] result = new DBBind[ this.column_count ];
+          for ( int i = 0; i < this.column_count; i++ )
+          {
+            result[ i ] = this.get_sqlite_bind( i );
+          }
+          return result;
+        }
+        else
+        {
+          return null;
+        }
+      }
+
+      public DBBind get_sqlite_bind( int column ) throws DBLib.DBError
+      {
+        switch ( this.stmt.column_type( column ) )
+        {
+          case Sqlite.INTEGER: return new DBBind( typeof( int64 ), (void*)this.stmt.column_int64( column ) );
+          case Sqlite.TEXT: return new DBBind( typeof( string ), (void*)this.stmt.column_text( column ) );
+          default:
+            throw new DBLib.DBError.STATEMENT_ERROR( "Unimplemente SQLite Type %s", this.stmt.column_type( column ).to_string( ) );
         }
       }
     }

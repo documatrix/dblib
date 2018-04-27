@@ -201,9 +201,8 @@ namespace DBLib
 
       private ulong[] data_length;
 
-      private char[] test;
-
-      private Mysql.Bind[] mysql_binds;
+      private DBBind[]? binds;
+      private DBBind[]? result;
 
       /**
        * The result object which was fetched from MySQL.
@@ -225,34 +224,19 @@ namespace DBLib
         base( conn, server_side_result );
       }
 
-      public void init( DBLib.Statement statment )
+      public void init( DBLib.Statement statment ) throws DBLib.DBError.STATEMENT_ERROR
       {
         string final_code = statment.to_sql( );
-        void*[] binds = statment.get_binds( );
-        Type[] types = statment.get_types( );
+        this.binds = statment.get_binds( );
         int result;
         this.stmt = ( (DBLib.MySQL.Connection)this.conn ).dbh.create_statment( );
+
         this.stmt.prepare( final_code, final_code.length );
         {
-          Mysql.Bind[] mysql_binds = new Mysql.Bind[ types.length ];
-          for ( int i = 0; i < types.length; i ++ )
+          Mysql.Bind[] mysql_binds = new Mysql.Bind[ this.binds.length ];
+          for ( int i = 0; i < this.binds.length; i ++ )
           {
-            if ( types[ i ] == typeof( string ) )
-            {
-              mysql_binds[ i ].buffer_type = Mysql.FieldType.STRING;
-              mysql_binds[ i ].buffer_length = ( (string)binds[ i ] ).length;
-            }
-            else if ( types[ i ] == typeof( uint8[] ) )
-            {
-              mysql_binds[ i ].buffer_type = Mysql.FieldType.BLOB;
-              mysql_binds[ i ].buffer_length = ( (uint8[])binds[ i ] ).length;
-            }
-            else
-            {
-              throw new DBLib.DBError.STATEMENT_ERROR( "Unimplemente Type %s", types[ i ].name( ) );
-            }
-
-            mysql_binds[ i ].buffer = binds[ i ];
+            this.set_mysql_bind( this.binds[ i ], ref mysql_binds[ i ] );
           }
           if ( this.stmt.bind_param( mysql_binds ) != 0 )
           {
@@ -265,25 +249,22 @@ namespace DBLib
           throw new DBLib.DBError.STATEMENT_ERROR( "Could not Execute %s", this.stmt.error( ) );
         }
         this.mysql_metadata = this.stmt.result_metadata( );
-        if ( this.mysql_metadata == null )
-        {
-          throw new DBLib.DBError.STATEMENT_ERROR( "Could not Read Metadata of Statment %s", this.stmt.error( ) );
-        }
-        else
+        if ( this.mysql_metadata != null )
         {
           this.mysql_fields = this.mysql_metadata.fetch_fields( );
-          this.mysql_binds = new Mysql.Bind[ this.mysql_fields.length ];
+          Mysql.Bind[] mysql_result = new Mysql.Bind[ this.mysql_fields.length ];
+          this.result = new DBBind[ this.mysql_fields.length ];
           this.data_length = new ulong[ this.mysql_fields.length ];
 
           for( int i = 0; i < this.mysql_fields.length; i ++ )
           {
-            uint8[] data = new uint8[ this.mysql_fields[ i ].length + 1 ];
-            this.mysql_binds[ i ].buffer_type = this.mysql_fields[ i ].type;
-            this.mysql_binds[ i ].buffer = &data;
-            this.mysql_binds[ i ].buffer_length = this.mysql_fields[ i ].length;
+            this.result[ i ] = this.get_mysql_bind( this.mysql_fields[ i ].type, this.mysql_fields[ i ].length );
+            mysql_result[ i ].buffer_type = this.mysql_fields[ i ].type;
+            mysql_result[ i ].buffer = this.result[ i ].get_pointer( );
+            mysql_result[ i ].buffer_length = this.mysql_fields[ i ].length;
             this.data_length[ i ] = this.mysql_fields[ i ].length;
           }
-          if ( this.stmt.bind_result( mysql_binds ) != 0 )
+          if ( this.stmt.bind_result( mysql_result ) != 0 )
           {
             throw new DBLib.DBError.STATEMENT_ERROR( "Could not Bind Result %s", this.stmt.error( ) );
           }
@@ -291,6 +272,35 @@ namespace DBLib
           {
             throw new DBLib.DBError.STATEMENT_ERROR( "Could not Store Result %s", this.stmt.error( ) );
           }
+        }
+      }
+
+      public DBBind get_mysql_bind( Mysql.FieldType type, ulong length ) throws DBLib.DBError
+      {
+        switch ( type )
+        {
+          case Mysql.FieldType.BLOB: return new DBBind.empty( typeof( uint8[] ), length );
+          case Mysql.FieldType.LONG: return new DBBind.empty( typeof( long ), length );
+          case Mysql.FieldType.TINY: return new DBBind.empty( typeof( uint8 ), length );
+          case Mysql.FieldType.LONGLONG: return new DBBind.empty( typeof( int64 ), length );
+          case Mysql.FieldType.STRING:
+          case Mysql.FieldType.VAR_STRING: return new DBBind.empty( typeof( string ), length );
+          default:
+            throw new DBLib.DBError.STATEMENT_ERROR( "Unimplemente Mysql Type %s", type.to_string( ) );
+        }
+      }
+
+      public void set_mysql_bind( DBBind bind, ref Mysql.Bind mysql_bind ) throws DBLib.DBError
+      {
+        if ( bind.type == typeof( string ) )
+        {
+          mysql_bind.buffer_type = Mysql.FieldType.STRING;
+          mysql_bind.buffer_length = bind.as_string.length;
+          mysql_bind.buffer = (void*)(bind.as_string);
+        }
+        else
+        {
+          throw new DBLib.DBError.STATEMENT_ERROR( "Unimplemente Mysql Type %s", bind.type.name( ) );
         }
       }
 
@@ -323,9 +333,16 @@ namespace DBLib
 
       public string[]? fetch_row( )
       {
-        ulong[] array_length;
-        void*[] array = this.fetchrow_binary( out array_length );
-        return (string[])array;
+        if ( this.stmt.fetch( ) != 0 )
+        {
+          return null;
+        }
+        string[] array = new string[ this.data_length.length ];
+        for( int i = 0; i < this.data_length.length; i ++ )
+        {
+          array[ i ] = this.result[ i ].get_string( );
+        }
+        return array;
       }
 
       /**
@@ -341,10 +358,22 @@ namespace DBLib
         array_length = new ulong[ this.data_length.length ];
         for( int i = 0; i < this.data_length.length; i ++ )
         {
-          data[ i ] = this.mysql_binds[ i ].buffer;
-          array_length[ i ] = this.mysql_binds[ i ].buffer_length;
+          data[ i ] = (void*)this.result[ i ].get_string( );
+          array_length[ i ] = this.data_length[ i ];
         }
         return data;
+      }
+
+      /**
+       * @see DBLib.Result.fetchrow_binary
+       */
+      public override DBBind[]? fetchrow_bind( )
+      {
+        if ( this.stmt.fetch( ) != 0 )
+        {
+          return null;
+        }
+        return this.result;
       }
     }
   }
