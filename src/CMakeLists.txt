@@ -19,6 +19,8 @@ set (DBLIB_SOURCES ${DBLIB_SOURCES} dblib.vala)
 set (DBLIB_SOURCES ${DBLIB_SOURCES} dblib_mysql.vala)
 set (DBLIB_SOURCES ${DBLIB_SOURCES} dblib_sqlite.vala)
 
+set (CUSTOM_VAPIS_LIST ${CUSTOM_VAPIS_LIST} mysql.vapi)
+
 vala_precompile(DBLIB_VALA_C
   ${DBLIB_SOURCES}
 PACKAGES
