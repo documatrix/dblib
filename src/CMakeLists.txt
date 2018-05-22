@@ -19,6 +19,15 @@ set (DBLIB_SOURCES ${DBLIB_SOURCES} dblib.vala)
 set (DBLIB_SOURCES ${DBLIB_SOURCES} dblib_mysql.vala)
 set (DBLIB_SOURCES ${DBLIB_SOURCES} dblib_sqlite.vala)
 
+if(${CMAKE_SYSTEM_NAME} STREQUAL Windows)
+  set (CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -DOS_WINDOWS")
+elseif(${CMAKE_SYSTEM_NAME} STREQUAL Darwin)
+  set (CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -DOS_MACOSX")
+else()
+  set (CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -DOS_LINUX")
+endif()
+
+
 vala_precompile(DBLIB_VALA_C
   ${DBLIB_SOURCES}
 PACKAGES
@@ -52,19 +61,33 @@ if(NOT DEFINED CMAKE_INSTALL_LIBDIR)
 endif(NOT DEFINED CMAKE_INSTALL_LIBDIR)
 set(prefix       ${CMAKE_INSTALL_PREFIX})
 set(exec_prefix ${CMAKE_INSTALL_PREFIX})
-set(libdir       ${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_LIBDIR})
+if(${CMAKE_SYSTEM_NAME} STREQUAL Windows)
+  set(libdir       ${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_BINDIR})
+else()
+  set(libdir       ${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_LIBDIR})
+endif()
 set(includedir  ${CMAKE_INSTALL_PREFIX}/include)
 set(LIBS         "")
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/libdblib.pc.in
   ${CMAKE_CURRENT_BINARY_DIR}/${DBLIB_NAME}.pc @ONLY)
 
+if(${CMAKE_SYSTEM_NAME} STREQUAL Windows)
+# Install shared object
+install(
+TARGETS
+  ${DBLIB_NAME}
+DESTINATION
+bin/
+)
+else()
 # Install shared object
 install(
 TARGETS
   ${DBLIB_NAME}
 LIBRARY DESTINATION
-  lib/
+lib/
 )
+endif( )
 
 # Install header files
 install(
