@@ -66,7 +66,7 @@ set (VALA_PACKAGES ${VALA_PACKAGES} dm_logger-1.0)
 set (VALA_PACKAGES ${VALA_PACKAGES} open_dmlib_io)
 set (VALA_PACKAGES ${VALA_PACKAGES} sqlite3)
 
-set (MODULES_TO_CHECK glib-2.0 dmtestlib-1.0 gobject-2.0 gio-2.0 gthread-2.0 zlib open_dmlib-1.0 dm_logger-1.0 sqlite3)
+set (MODULES_TO_CHECK glib-2.0 dmtestlib-1.0 gobject-2.0 gio-2.0 gthread-2.0 zlib open_dmlib-1.0 dm_logger-1.0 sqlite3 MagickWand)
 pkg_check_modules(DEPS REQUIRED ${MODULES_TO_CHECK})
 
 set( LIBS )
