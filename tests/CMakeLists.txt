@@ -18,6 +18,7 @@ find_package (Vala REQUIRED)
 include( UseVala )
 
 set (TEST_DBLIB_SOURCES ${TEST_DBLIB_SOURCES} test_dblib.vala)
+set (CUSTOM_VAPIS_LIST ${CUSTOM_VAPIS_LIST} ${CMAKE_SOURCE_DIR}/src/mysql.vapi)
 
 vala_precompile(TEST_DBLIB_VALA_C
   ${TEST_DBLIB_SOURCES}

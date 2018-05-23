@@ -19,6 +19,8 @@ set (DBLIB_SOURCES ${DBLIB_SOURCES} dblib.vala)
 set (DBLIB_SOURCES ${DBLIB_SOURCES} dblib_mysql.vala)
 set (DBLIB_SOURCES ${DBLIB_SOURCES} dblib_sqlite.vala)
 
+set (CUSTOM_VAPIS_LIST ${CUSTOM_VAPIS_LIST} mysql.vapi)
+
 if(${CMAKE_SYSTEM_NAME} STREQUAL Windows)
   set (CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -DOS_WINDOWS")
 elseif(${CMAKE_SYSTEM_NAME} STREQUAL Darwin)
