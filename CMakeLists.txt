@@ -1,5 +1,3 @@
-### CMakeLists automatically created with AutoVala
-### Do not edit
 
 project (dblib)
 cmake_minimum_required (VERSION 2.6)
@@ -60,7 +58,6 @@ set (VALA_PACKAGES ${VALA_PACKAGES} gobject-2.0)
 set (VALA_PACKAGES ${VALA_PACKAGES} dmtestlib-1.0)
 set (VALA_PACKAGES ${VALA_PACKAGES} posix)
 set (VALA_PACKAGES ${VALA_PACKAGES} zlib)
-set (VALA_PACKAGES ${VALA_PACKAGES} mysql)
 set (VALA_PACKAGES ${VALA_PACKAGES} open_dmlib-1.0)
 set (VALA_PACKAGES ${VALA_PACKAGES} dm_logger-1.0)
 set (VALA_PACKAGES ${VALA_PACKAGES} open_dmlib_io)

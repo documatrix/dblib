@@ -39,7 +39,7 @@ CUSTOM_VAPIS
 GENERATE_HEADER
   dblib
 OPTIONS
---thread -g --vapidir=${CMAKE_INSTALL_PREFIX}/share/vala/vapi ${VAPIDIRS_ARGS}
+--thread -g --vapidir=. --vapidir=${CMAKE_INSTALL_PREFIX}/share/vala/vapi ${VAPIDIRS_ARGS}
 )
 
 add_library(
@@ -101,6 +101,7 @@ DESTINATION
 install(
 FILES
   ${CMAKE_CURRENT_BINARY_DIR}/${DBLIB_NAME}.vapi
+  ${CMAKE_CURRENT_BINARY_DIR}/mysql.vapi
 DESTINATION
   ${CMAKE_INSTALL_PREFIX}/share/vala/vapi/
 )
