@@ -43,6 +43,11 @@ OUTPUT_VARIABLE
 # https://bugs.mysql.com/bug.php?id=86971
 string(REGEX REPLACE "-l$" "-lmysqlclient" MYSQL_LIBS ${MYSQL_LIBS})
 
+if( ${CMAKE_SYSTEM_NAME} STREQUAL Windows )
+  set( MYSQL_LIBS "-lmysqlclient" )
+  message( STATUS "Setting MYSQL_LIBS to " ${MYSQL_CFLAGS} )
+endif()
+
 EXEC_PROGRAM(
   which
 ARGS
@@ -50,7 +55,6 @@ ARGS
 OUTPUT_VARIABLE
   PREPROCESS_LOGGER
 )
-
 
 set (VALA_PACKAGES ${VALA_PACKAGES} gio-2.0)
 set (VALA_PACKAGES ${VALA_PACKAGES} glib-2.0)
@@ -72,8 +76,7 @@ foreach( PKGLIB ${DEPS_LIBRARIES} )
   list( APPEND LIBS ${_LIB_${PKGLIB}} )
 endforeach( PKGLIB )
 
-#add_definitions (${DEPS_CFLAGS} )
-include_directories ( ${DEPS_INCLUDE_DIRS} )
+add_definitions (${DEPS_CFLAGS} )
 link_directories ( ${DEPS_LIBRARY_DIRS} )
 link_libraries ( ${LIBS} )
 

@@ -7,13 +7,12 @@ set (DOLLAR "$")
 
 configure_file (${CMAKE_SOURCE_DIR}/src/Config.vala.cmake ${CMAKE_BINARY_DIR}/src/Config.vala)
 add_definitions(-DGETTEXT_PACKAGE=\"${GETTEXT_PACKAGE}\")
-add_definitions (${DEPS_CFLAGS})
 add_definitions( ${MYSQL_CFLAGS} )
-link_libraries ( ${DEPS_LIBRARIES} )
 link_libraries ( ${MYSQL_LIBS} )
-link_directories ( ${DEPS_LIBRARY_DIRS} )
 find_package (Vala REQUIRED)
 include( UseVala )
+
+
 
 set (DBLIB_SOURCES ${DBLIB_SOURCES} dblib.vala)
 set (DBLIB_SOURCES ${DBLIB_SOURCES} dblib_mysql.vala)
@@ -23,6 +22,7 @@ set (CUSTOM_VAPIS_LIST ${CUSTOM_VAPIS_LIST} mysql.vapi)
 
 if(${CMAKE_SYSTEM_NAME} STREQUAL Windows)
   set (CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -DOS_WINDOWS")
+  set (CMAKE_VALA_OPTS ${CMAKE_VALA_OPTS} -D OS_WINDOWS)
 elseif(${CMAKE_SYSTEM_NAME} STREQUAL Darwin)
   set (CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -DOS_MACOSX")
 else()
@@ -58,6 +58,9 @@ ADD_CUSTOM_COMMAND(
 ADD_DEPENDENCIES( ${DBLIB_NAME} dblib_preprocessed )
 
 # CREATE PKGCONFIG FILES
+if(NOT DEFINED CMAKE_INSTALL_BINDIR)
+  set(CMAKE_INSTALL_BINDIR bin)
+endif(NOT DEFINED CMAKE_INSTALL_BINDIR)
 if(NOT DEFINED CMAKE_INSTALL_LIBDIR)
   set(CMAKE_INSTALL_LIBDIR lib)
 endif(NOT DEFINED CMAKE_INSTALL_LIBDIR)
