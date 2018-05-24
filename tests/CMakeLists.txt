@@ -7,17 +7,27 @@ set (DOLLAR "$")
 
 configure_file (${CMAKE_SOURCE_DIR}/src/Config.vala.cmake ${CMAKE_BINARY_DIR}/src/Config.vala)
 add_definitions(-DGETTEXT_PACKAGE=\"${GETTEXT_PACKAGE}\")
-add_definitions (${DEPS_CFLAGS})
 add_definitions( ${MYSQL_CFLAGS} )
 include_directories( ${CMAKE_SOURCE_DIR}/src )
-link_libraries ( ${DEPS_LIBRARIES} )
 link_libraries ( ${DBLIB_NAME} )
 link_libraries ( ${MYSQL_LIBS} )
-link_directories ( ${DEPS_LIBRARY_DIRS} )
 find_package (Vala REQUIRED)
 include( UseVala )
 
+set (VALA_PACKAGES ${VALA_PACKAGES} gio-2.0)
+set (VALA_PACKAGES ${VALA_PACKAGES} glib-2.0)
+set (VALA_PACKAGES ${VALA_PACKAGES} gobject-2.0)
+set (VALA_PACKAGES ${VALA_PACKAGES} dmtestlib-1.0)
+set (VALA_PACKAGES ${VALA_PACKAGES} posix)
+set (VALA_PACKAGES ${VALA_PACKAGES} zlib)
+set (VALA_PACKAGES ${VALA_PACKAGES} open_dmlib-1.0)
+set (VALA_PACKAGES ${VALA_PACKAGES} dm_logger-1.0)
+set (VALA_PACKAGES ${VALA_PACKAGES} open_dmlib_io)
+set (VALA_PACKAGES ${VALA_PACKAGES} sqlite3)
+
+
 set (TEST_DBLIB_SOURCES ${TEST_DBLIB_SOURCES} test_dblib.vala)
+
 set (CUSTOM_VAPIS_LIST ${CUSTOM_VAPIS_LIST} ${CMAKE_SOURCE_DIR}/src/mysql.vapi)
 
 vala_precompile(TEST_DBLIB_VALA_C

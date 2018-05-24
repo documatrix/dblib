@@ -43,6 +43,11 @@ OUTPUT_VARIABLE
 # https://bugs.mysql.com/bug.php?id=86971
 string(REGEX REPLACE "-l$" "-lmysqlclient" MYSQL_LIBS ${MYSQL_LIBS})
 
+if( ${CMAKE_SYSTEM_NAME} STREQUAL Windows )
+  set( MYSQL_LIBS "-lmysqlclient" )
+  message( STATUS "Setting MYSQL_LIBS to " ${MYSQL_LIBS} )
+endif()
+
 EXEC_PROGRAM(
   which
 ARGS
@@ -51,17 +56,6 @@ OUTPUT_VARIABLE
   PREPROCESS_LOGGER
 )
 
-
-set (VALA_PACKAGES ${VALA_PACKAGES} gio-2.0)
-set (VALA_PACKAGES ${VALA_PACKAGES} glib-2.0)
-set (VALA_PACKAGES ${VALA_PACKAGES} gobject-2.0)
-set (VALA_PACKAGES ${VALA_PACKAGES} dmtestlib-1.0)
-set (VALA_PACKAGES ${VALA_PACKAGES} posix)
-set (VALA_PACKAGES ${VALA_PACKAGES} zlib)
-set (VALA_PACKAGES ${VALA_PACKAGES} open_dmlib-1.0)
-set (VALA_PACKAGES ${VALA_PACKAGES} dm_logger-1.0)
-set (VALA_PACKAGES ${VALA_PACKAGES} open_dmlib_io)
-set (VALA_PACKAGES ${VALA_PACKAGES} sqlite3)
 
 set (MODULES_TO_CHECK glib-2.0 dmtestlib-1.0 gobject-2.0 gio-2.0 gthread-2.0 zlib open_dmlib-1.0 dm_logger-1.0 sqlite3 MagickWand)
 pkg_check_modules(DEPS REQUIRED ${MODULES_TO_CHECK})
@@ -72,8 +66,7 @@ foreach( PKGLIB ${DEPS_LIBRARIES} )
   list( APPEND LIBS ${_LIB_${PKGLIB}} )
 endforeach( PKGLIB )
 
-#add_definitions (${DEPS_CFLAGS} )
-include_directories ( ${DEPS_INCLUDE_DIRS} )
+add_definitions (${DEPS_CFLAGS} )
 link_directories ( ${DEPS_LIBRARY_DIRS} )
 link_libraries ( ${LIBS} )
 
