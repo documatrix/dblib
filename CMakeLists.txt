@@ -41,7 +41,7 @@ OUTPUT_VARIABLE
   MYSQL_LIBS
 )
 # https://bugs.mysql.com/bug.php?id=86971
-string(REGEX REPLACE "-l\s*$" "-lmysqlclient" MYSQL_LIBS ${MYSQL_LIBS})
+string(REGEX REPLACE "-l\\s*$" "-lmysqlclient" MYSQL_LIBS ${MYSQL_LIBS})
 
 if( ${CMAKE_SYSTEM_NAME} STREQUAL Windows )
   set( MYSQL_LIBS "-lmysqlclient" )
