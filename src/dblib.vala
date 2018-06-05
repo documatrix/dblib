@@ -56,7 +56,7 @@ namespace DBLib
       switch ( db_type )
       {
         case DBType.MYSQL:
-          DMLogger.log.debug( 0, false, "Connecting to a MySQL database using connection string ${1}, user ${2} and password ${3}", connection_string, user ?? "(null)", password ?? "(null)" );
+          DMLogger.log.debug( 0, false, "Connecting to a MySQL database using connection string ${1}, user ${2} and password ${3}", connection_string, user ?? "(null)", "******" );
           return new DBLib.MySQL.Connection( dsn, user, password );
         case DBType.SQLITE:
           DMLogger.log.debug( 0, false, "Connecting to a SQLite database using connection string ${1}", connection_string );
