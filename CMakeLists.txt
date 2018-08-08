@@ -31,7 +31,13 @@ ARGS
   --cflags
 OUTPUT_VARIABLE
   MYSQL_CFLAGS
+RETURN_VALUE
+  MYSQL_RC
 )
+
+if( NOT ${MYSQL_RC} STREQUAL "0" )
+	message( FATAL_ERROR "mysql_config RC: ${MYSQL_RC}, Output: ${MYSQL_CFLAGS}, probably need install mysql client devel" )
+endif()
 
 EXEC_PROGRAM(
   mysql_config
@@ -39,7 +45,14 @@ ARGS
   --libs
 OUTPUT_VARIABLE
   MYSQL_LIBS
+RETURN_VALUE
+  MYSQL_RC
 )
+
+if( NOT ${MYSQL_RC} STREQUAL "0" )
+	message( FATAL_ERROR "mysql_config RC: ${MYSQL_RC}, Output: ${MYSQL_LIBS}, probably need install mysql client devel" )
+endif()
+
 # https://bugs.mysql.com/bug.php?id=86971
 string(REGEX REPLACE "-l\\s*$" "-lmysqlclient" MYSQL_LIBS ${MYSQL_LIBS})
 
