@@ -70,6 +70,9 @@ namespace DBLib
       {
         if ( this.dbh.real_query( code, code.length ) != 0 )
         {
+          uint err_no = this.dbh.errno( );
+          string err_msg = this.dbh.error( );
+
           /* Check Connection */
           if ( this.dbh.ping( ) != 0 )
           {
@@ -77,12 +80,12 @@ namespace DBLib
             this.connect( );
             if ( this.dbh.real_query( code, code.length ) != 0 )
             {
-              throw new DBLib.DBError.STATEMENT_ERROR( "Could not execute query \"%s\" on MySQL database! %u: %s", code, this.dbh.errno( ), this.dbh.error( ) );
+              throw new DBLib.DBError.STATEMENT_ERROR( "Could not execute query \"%s\" on MySQL database after retry! MySQL Error %u: %s", code, this.dbh.errno( ), this.dbh.error( ) );
             }
           }
           else
           {
-            throw new DBLib.DBError.STATEMENT_ERROR( "Could not execute query \"%s\" on MySQL database! %u: %s", code, this.dbh.errno( ), this.dbh.error( ) );
+            throw new DBLib.DBError.STATEMENT_ERROR( "Could not execute query \"%s\" on MySQL database! MySQL Error %u: %s", code, err_no, err_msg );
           }
         }
       }
