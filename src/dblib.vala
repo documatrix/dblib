@@ -44,10 +44,11 @@ namespace DBLib
      * @param connection_string The connection string which should be passed to the driver.
      * @param user The username which should be used to connect to the database.
      * @param password The password which should be used to connect to the database.
+     * @param encoding The encoding which should be used for the database connection
      * @return A connection object which represents the database connection.
      * @throws DBError This error will be thrown if an error occurs while connecting to the database.
      */
-    public static Connection connect( DBType db_type, string connection_string, string? user = null, string? password = null ) throws DBError.CONNECTION_ERROR
+    public static Connection connect( DBType db_type, string connection_string, string? user = null, string? password = null, string? encoding = null ) throws DBError.CONNECTION_ERROR
     {
       DMLogger.log.debug( 0, false, "Connecting to database." );
 
@@ -56,8 +57,8 @@ namespace DBLib
       switch ( db_type )
       {
         case DBType.MYSQL:
-          DMLogger.log.debug( 0, false, "Connecting to a MySQL database using connection string ${1}, user ${2} and password ${3}", connection_string, user ?? "(null)", "******" );
-          return new DBLib.MySQL.Connection( dsn, user, password );
+          DMLogger.log.debug( 0, false, "Connecting to a MySQL database using connection string ${1}, user ${2} and password ${3} with encoding ${4}", connection_string, user ?? "(null)", "******", encoding ?? "(null)" );
+          return new DBLib.MySQL.Connection( dsn, user, password, encoding );
         case DBType.SQLITE:
           DMLogger.log.debug( 0, false, "Connecting to a SQLite database using connection string ${1}", connection_string );
           return new DBLib.SQLite.Connection( dsn );

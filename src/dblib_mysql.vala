@@ -25,6 +25,11 @@ namespace DBLib
       private string? password;
 
       /**
+       * The encoding which should be used for the database connection.
+       */
+      private string? encoding;
+
+      /**
        * The port which should be used to connect to the database.
        */
       private uint port = 0;
@@ -34,13 +39,15 @@ namespace DBLib
        * @param dsn A DataSourceName object containing the informations which will be passed to the MySQL library.
        * @param user A user which should be used to connect to the database.
        * @param password A password which should be used to connect to the database.
+       * @param encoding A encoding which should be used for the database connection.
        * @throws DBLib.DBError if an error occurs while connecting to the MySQL database.
        */
-      public Connection( DataSourceName dsn, string? user, string? password ) throws DBLib.DBError.CONNECTION_ERROR
+      public Connection( DataSourceName dsn, string? user, string? password, string? encoding ) throws DBLib.DBError.CONNECTION_ERROR
       {
         this.dsn = dsn;
         this.user = user;
         this.password = password;
+        this.encoding = encoding;
 
         this.dbh = new Mysql.Database( );
 
@@ -60,6 +67,11 @@ namespace DBLib
         if ( !this.dbh.real_connect( this.dsn[ "host" ], this.user, this.password, this.dsn[ "database" ], this.port, this.dsn[ "unix_socket" ] ) )
         {
           throw new DBLib.DBError.CONNECTION_ERROR( "Could not connect to MySQL database! %u: %s", this.dbh.errno( ), this.dbh.error( ) );
+        }
+
+        if ( this.encoding != null )
+        {
+          this.dbh.set_character_set( (!)this.encoding );
         }
       }
 
