@@ -257,7 +257,7 @@ namespace DBLib
      * @param conn The connection to use to fetch the resultset.
      * @param server_side_result @see DBLib.Result.server_side_result.
      */
-    public Result( DBLib.Connection conn, bool server_side_result )
+    protected Result( DBLib.Connection conn, bool server_side_result )
     {
       this.conn = conn;
       this.server_side_result = server_side_result;
